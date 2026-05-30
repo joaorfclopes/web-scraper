@@ -1,16 +1,32 @@
 {
   "nav": {
-    "containerSelector": "nav[aria-label='Workshop content'], nav.workshopNavigation, [data-testid='sidebar'], aside nav, nav",
+    "containerSelector": "nav[class*='awsui_navigation']",
     "itemSelector": "a[href]",
-    "groupSelector": "[class*='chapter'], [class*='section'], [class*='group'], li.has-children > span, li.parent > span"
+    "groupSelector": "[class*='awsui_expandable-link-group']",
+    "groupTitleSelector": "[class*='awsui_header-navigation']"
   },
-  "sidebar": {
-    "toggleSelector": "button[aria-label*='collapse' i], button[aria-label*='close sidebar' i], button[title*='collapse' i], [class*='sidebar-toggle'], [class*='sidebarToggle']"
-  },
+  "includeBasePage": true,
+  "basePageTitle": "Overview",
+  "hideSelectors": [
+    "nav[class*='awsui_navigation']",
+    "[class*='awsui_navigation-container']",
+    "[class*='awsui_navigation-toggle']",
+    "[class*='awsui_breadcrumb']",
+    "header[class*='awsui_top-navigation']",
+    "[class*='AppTopNavigation']",
+    "[class*='Footer-module']",
+    "[class*='awsui_tools']",
+    "[class*='awsui_drawer']"
+  ],
+  "widenSelectors": [
+    "[class*='awsui_content-wrapper']",
+    "[class*='awsui_content']",
+    "main"
+  ],
   "waitFor": "networkidle",
   "pdfOptions": {
     "format": "A4",
     "printBackground": true,
-    "margin": { "top": "20mm", "bottom": "20mm", "left": "15mm", "right": "15mm" }
+    "margin": { "top": "15mm", "bottom": "15mm", "left": "12mm", "right": "12mm" }
   }
 }

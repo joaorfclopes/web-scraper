@@ -18,18 +18,7 @@ export async function savePdf(page, url, outputPath, config, { force = false } =
     // timeout on networkidle is acceptable — page may still be usable
   }
 
-  // Collapse sidebar if toggle exists
-  if (config.sidebar?.toggleSelector) {
-    try {
-      const toggle = page.locator(config.sidebar.toggleSelector).first();
-      if (await toggle.isVisible({ timeout: 3000 })) {
-        await toggle.click();
-        await page.waitForTimeout(500);
-      }
-    } catch {
-      // sidebar toggle not found or not clickable — continue
-    }
-  }
+  await applyPrintStyles(page, config);
 
   await page.pdf({
     path: outputPath,
@@ -37,4 +26,27 @@ export async function savePdf(page, url, outputPath, config, { force = false } =
   });
 
   return { skipped: false };
+}
+
+/**
+ * Inject CSS to hide chrome (nav, header, footer) and widen the content area,
+ * so the PDF captures only the page content.
+ */
+async function applyPrintStyles(page, config) {
+  const hide = config.hideSelectors ?? [];
+  const widen = config.widenSelectors ?? [];
+
+  const css = [
+    hide.length ? `${hide.join(',\n')} { display: none !important; }` : '',
+    widen.length
+      ? `${widen.join(',\n')} { margin-left: 0 !important; padding-left: 0 !important; max-width: 100% !important; width: 100% !important; }`
+      : '',
+  ]
+    .filter(Boolean)
+    .join('\n');
+
+  if (css) {
+    await page.addStyleTag({ content: css });
+    await page.waitForTimeout(400);
+  }
 }

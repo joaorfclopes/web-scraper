@@ -2,10 +2,9 @@
 import { program } from 'commander';
 import { chromium } from 'playwright';
 import { resolve, join } from 'path';
-import { createInterface } from 'readline';
-import { saveSession, loadSession, sessionPath } from './auth.js';
+import { ensureSessionDir, sessionPath } from './auth.js';
 import { loadConfig } from './config.js';
-import { discoverPages, buildFilename } from './nav.js';
+import { discoverPages, buildFilename, newFilenameState } from './nav.js';
 import { savePdf } from './pdf.js';
 
 program
@@ -16,24 +15,27 @@ program
 // ── login ──────────────────────────────────────────────────────────────────
 
 program
-  .command('login <baseUrl>')
-  .description('Open browser, log in, save session cookies')
-  .action(async (baseUrl) => {
-    console.log('Opening browser — log in, then press Enter here to save session...');
+  .command('login <pageUrl>')
+  .description('Open browser, log in, save full session state')
+  .action(async (pageUrl) => {
+    await ensureSessionDir();
+
+    console.log('Opening browser...');
+    console.log('1. Log in and navigate to a workshop page');
+    console.log('2. Once you see workshop content with sidebar, come back here and press Enter\n');
 
     const browser = await chromium.launch({ headless: false });
     const context = await browser.newContext();
     const page = await context.newPage();
-    await page.goto(baseUrl);
+    await page.goto(pageUrl);
 
     await waitForEnter();
 
-    const cookies = await context.cookies();
-    await saveSession(cookies);
+    // Save full storage state (cookies + localStorage + sessionStorage)
+    await context.storageState({ path: sessionPath });
     await browser.close();
 
     console.log(`Session saved to ${sessionPath}`);
-    console.log(`Cookies saved: ${cookies.length}`);
   });
 
 // ── run ───────────────────────────────────────────────────────────────────
@@ -46,8 +48,8 @@ program
   .option('--force', 'Overwrite existing PDFs', false)
   .option('--dry-run', 'List pages without downloading', false)
   .action(async (baseUrl, opts) => {
-    const cookies = await loadSession();
-    if (!cookies) {
+    const { existsSync } = await import('fs');
+    if (!existsSync(sessionPath)) {
       console.error('No session found. Run: wscrape login <url>');
       process.exit(1);
     }
@@ -55,11 +57,11 @@ program
     const config = await loadConfig(opts.config);
     const outputDir = resolve(opts.output);
 
-    console.log(`Loading session (${cookies.length} cookies)...`);
+    console.log('Loading session...');
 
     const browser = await chromium.launch({ headless: true });
-    const context = await browser.newContext();
-    await context.addCookies(cookies);
+    // Restore full storageState (cookies + localStorage)
+    const context = await browser.newContext({ storageState: sessionPath });
     const page = await context.newPage();
 
     console.log(`Navigating to ${baseUrl}...`);
@@ -69,10 +71,10 @@ program
       await page.goto(baseUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
     }
 
-    // Check if redirected to login
     const currentUrl = page.url();
-    if (!currentUrl.includes(new URL(baseUrl).hostname)) {
-      console.error('Redirected away from site — session may be expired. Re-run: wscrape login <url>');
+    if (currentUrl.includes('/join') || !currentUrl.includes('workshop')) {
+      console.error(`Redirected to: ${currentUrl}`);
+      console.error('Session expired or invalid. Re-run: wscrape login <url>');
       await browser.close();
       process.exit(1);
     }
@@ -89,9 +91,9 @@ program
     console.log(`Found ${pages.length} pages.\n`);
 
     if (opts.dryRun) {
-      const groupCounters = new Map();
-      pages.forEach((p, i) => {
-        const filename = buildFilename(p, i, pages.length, groupCounters);
+      const state = newFilenameState();
+      pages.forEach((p) => {
+        const filename = buildFilename(p, state);
         console.log(`  ${filename}`);
         console.log(`    ${p.url}`);
       });
@@ -102,11 +104,11 @@ program
     const failed = [];
     let downloaded = 0;
     let skipped = 0;
-    const groupCounters = new Map();
+    const state = newFilenameState();
 
     for (let i = 0; i < pages.length; i++) {
       const pageInfo = pages[i];
-      const filename = buildFilename(pageInfo, i, pages.length, groupCounters);
+      const filename = buildFilename(pageInfo, state);
       const outputPath = join(outputDir, filename);
 
       process.stdout.write(`[${i + 1}/${pages.length}] ${filename} ... `);
@@ -142,10 +144,12 @@ program.parse();
 
 function waitForEnter() {
   return new Promise((resolve) => {
-    const rl = createInterface({ input: process.stdin, output: process.stdout });
-    rl.question('Press Enter when logged in... ', () => {
-      rl.close();
-      resolve();
+    import('readline').then(({ createInterface }) => {
+      const rl = createInterface({ input: process.stdin, output: process.stdout });
+      rl.question('Press Enter when logged in and workshop content is visible... ', () => {
+        rl.close();
+        resolve();
+      });
     });
   });
 }
