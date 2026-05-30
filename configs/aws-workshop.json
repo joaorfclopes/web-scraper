@@ -1,0 +1,16 @@
+{
+  "nav": {
+    "containerSelector": "nav[aria-label='Workshop content'], nav.workshopNavigation, [data-testid='sidebar'], aside nav, nav",
+    "itemSelector": "a[href]",
+    "groupSelector": "[class*='chapter'], [class*='section'], [class*='group'], li.has-children > span, li.parent > span"
+  },
+  "sidebar": {
+    "toggleSelector": "button[aria-label*='collapse' i], button[aria-label*='close sidebar' i], button[title*='collapse' i], [class*='sidebar-toggle'], [class*='sidebarToggle']"
+  },
+  "waitFor": "networkidle",
+  "pdfOptions": {
+    "format": "A4",
+    "printBackground": true,
+    "margin": { "top": "20mm", "bottom": "20mm", "left": "15mm", "right": "15mm" }
+  }
+}
