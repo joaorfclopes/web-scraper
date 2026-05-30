@@ -118,6 +118,15 @@ export const darkModeScript = `<script>
 [data-wscrape-theme=dark] main canvas {
   filter: invert(1) hue-rotate(180deg);
 }
+/* Double-invert pre: cancels body filter, so colors render as literal values */
+[data-wscrape-theme=dark] pre {
+  filter: invert(1) hue-rotate(180deg) !important;
+  background-color: #282C34 !important;
+  color: #fff !important;
+}
+[data-wscrape-theme=dark] pre * {
+  color: inherit !important;
+}
 </style>`;
 
 export function injectScripts(html, ...scripts) {
