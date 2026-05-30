@@ -9,11 +9,16 @@ export async function discoverPages(page, baseUrl, config) {
     basePath = config.basePath.replace(/\/$/, '');
   } else {
     const rawPath = new URL(baseUrl).pathname.replace(/\/$/, '');
-    const idx = rawPath.lastIndexOf('/workshop');
-    basePath =
-      idx !== -1
-        ? rawPath.slice(0, idx + '/workshop'.length)
-        : rawPath.slice(0, rawPath.lastIndexOf('/'));
+    if (/\/workshops\//.test(rawPath)) {
+      // Public catalog: /workshops/{uuid}/{locale} — full path is the base
+      basePath = rawPath;
+    } else {
+      const idx = rawPath.lastIndexOf('/workshop');
+      basePath =
+        idx !== -1
+          ? rawPath.slice(0, idx + '/workshop'.length)
+          : rawPath.slice(0, rawPath.lastIndexOf('/'));
+    }
   }
 
   const pages = await page.evaluate(

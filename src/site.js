@@ -12,7 +12,50 @@ export async function saveSite(page, url, outputPath, config, { force = false, u
   if (!force && existsSync(outputPath)) return { skipped: true };
   await mkdir(dirname(outputPath), { recursive: true });
 
+  // Intercept image responses at network level to capture raw bytes.
+  // SingleFile uses in-page fetch() which is blocked by CORS on CDN origins;
+  // Playwright interception bypasses this, letting us pre-convert to data URIs.
+  const capturedImages = new Map();
+  await page.route('**/*', async (route) => {
+    if (route.request().resourceType() === 'image') {
+      try {
+        const response = await route.fetch();
+        const body = await response.body();
+        const ct = (response.headers()['content-type'] || 'image/jpeg').split(';')[0].trim();
+        capturedImages.set(route.request().url(), `data:${ct};base64,${body.toString('base64')}`);
+        await route.fulfill({ response });
+      } catch {
+        await route.continue();
+      }
+    } else {
+      await route.continue();
+    }
+  });
+
   await preparePage(page, url, config, { keepChrome: true });
+
+  // Scroll through page to trigger lazy-loaded images, then reset scroll position
+  await page.evaluate(async () => {
+    const delay = (ms) => new Promise((r) => setTimeout(r, ms));
+    const step = Math.max(window.innerHeight, 400);
+    for (let y = 0; y <= document.body.scrollHeight; y += step) {
+      window.scrollTo(0, y);
+      await delay(80);
+    }
+    window.scrollTo(0, 0);
+  });
+  await page.waitForTimeout(800);
+
+  // Replace img src with captured data URIs so SingleFile inlines them as-is
+  await page.unroute('**/*');
+  if (capturedImages.size > 0) {
+    await page.evaluate((imageMap) => {
+      document.querySelectorAll('img[src]').forEach((img) => {
+        const uri = imageMap[img.src];
+        if (uri) { img.src = uri; img.removeAttribute('srcset'); img.removeAttribute('loading'); }
+      });
+    }, Object.fromEntries(capturedImages));
+  }
 
   // Remove notifications banner (e.g. "Event ends in...") before snapshot
   await page.evaluate(() => {

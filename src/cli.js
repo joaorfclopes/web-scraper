@@ -100,6 +100,28 @@ program
       process.exit(1);
     }
 
+    // Check if URL is publicly accessible (no session needed) and write _source.txt if so
+    if (!opts.dryRun) {
+      const publicCtx = await browser.newContext({ bypassCSP: true });
+      const publicPage = await publicCtx.newPage();
+      let isPublic = false;
+      try {
+        await publicPage.goto(baseUrl, { waitUntil: 'domcontentloaded', timeout: 15000 });
+        const pubUrl = publicPage.url();
+        const onSameHost = new URL(pubUrl).hostname === new URL(baseUrl).hostname;
+        const needsLogin = config.loginIndicator && pubUrl.includes(config.loginIndicator);
+        isPublic = onSameHost && !needsLogin;
+      } catch { /* network error = not accessible */ }
+      await publicCtx.close();
+
+      if (isPublic) {
+        const { mkdir: mkdirAsync, writeFile: writeFileAsync } = await import('fs/promises');
+        await mkdirAsync(outputDir, { recursive: true });
+        await writeFileAsync(join(outputDir, '_source.txt'), baseUrl + '\n', 'utf8');
+        console.log('Public workshop — source URL saved to _source.txt');
+      }
+    }
+
     console.log('Discovering pages...');
     const pages = await discoverPages(page, baseUrl, config);
 
