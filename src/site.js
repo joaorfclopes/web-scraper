@@ -14,6 +14,13 @@ export async function saveSite(page, url, outputPath, config, { force = false, u
 
   await preparePage(page, url, config, { keepChrome: true });
 
+  // Remove notifications banner (e.g. "Event ends in...") before snapshot
+  await page.evaluate(() => {
+    document.querySelectorAll(
+      '[aria-label="Notifications"], #app-notifications, [data-itemid="EVENT_STATE"]'
+    ).forEach((el) => el.remove());
+  });
+
   // Force-expand all collapsed nav groups before snapshot
   await page.evaluate(({ groupSelector, groupTitleSelector }) => {
     document.querySelectorAll(groupSelector).forEach((group) => {
@@ -65,6 +72,12 @@ export async function saveSite(page, url, outputPath, config, { force = false, u
 
   // Strip the sentinel prefix, leaving a clean %20-encoded relative filename
   html = html.replaceAll(SENTINEL, '');
+
+  // Nullify any remaining AWS links (logo, breadcrumbs, exit button, etc.)
+  const awsOrigin = new URL(url).origin;
+  const awsEscaped = awsOrigin.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  html = html.replace(new RegExp(`href=${awsEscaped}[^ >]*`, 'g'), 'href=#');
+  html = html.replace(new RegExp(`href="${awsEscaped}[^"]*"`, 'g'), 'href="#"');
 
   await writeFile(
     outputPath,

@@ -2,3 +2,4 @@ node_modules/
 *.pdf
 test-output/
 output*
+.DS_Store
