@@ -71,6 +71,55 @@ export function navButtonsScript(orderedFiles, index) {
 </script>`;
 }
 
+// Toggles dark/light mode via the Settings button. Persists choice in localStorage.
+export const darkModeScript = `<script>
+(function () {
+  var KEY = 'wscrape-theme';
+  var isDark = localStorage.getItem(KEY) === 'dark';
+
+  function apply() {
+    document.documentElement.setAttribute('data-wscrape-theme', isDark ? 'dark' : 'light');
+  }
+
+  function toggle() {
+    isDark = !isDark;
+    localStorage.setItem(KEY, isDark ? 'dark' : 'light');
+    apply();
+  }
+
+  apply();
+
+  document.addEventListener('click', function (e) {
+    var btn = e.target.closest('[aria-label=Settings]');
+    if (btn) { e.preventDefault(); toggle(); return; }
+    var item = e.target.closest('li, [role=menuitem], button');
+    if (item && /dark|light/i.test(item.textContent || '')) { e.preventDefault(); toggle(); }
+  }, true);
+})();
+</script><style>
+/* Invert the whole page. html bg covers scroll gutters. */
+[data-wscrape-theme=dark] html { background-color: #000 !important; }
+[data-wscrape-theme=dark] body {
+  filter: invert(1) hue-rotate(180deg);
+  background-color: #fff !important;
+}
+/* Double-invert chrome that is already dark → cancels out, stays dark */
+[data-wscrape-theme=dark] [class*="awsui_top-navigation"],
+[data-wscrape-theme=dark] [class*="awsui_navigation-container"],
+[data-wscrape-theme=dark] nav[class*="awsui"],
+[data-wscrape-theme=dark] [class*="awsui_footer"],
+[data-wscrape-theme=dark] footer {
+  filter: invert(1) hue-rotate(180deg);
+}
+/* Double-invert images/media in the content area so they look natural */
+[data-wscrape-theme=dark] main img,
+[data-wscrape-theme=dark] main svg,
+[data-wscrape-theme=dark] main video,
+[data-wscrape-theme=dark] main canvas {
+  filter: invert(1) hue-rotate(180deg);
+}
+</style>`;
+
 export function injectScripts(html, ...scripts) {
   const tag = scripts.join('\n');
   const idx = html.lastIndexOf('</body>');

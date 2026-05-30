@@ -3,7 +3,7 @@ import { mkdir, writeFile } from 'fs/promises';
 import { dirname } from 'path';
 import { createRequire } from 'module';
 import { preparePage } from './render.js';
-import { copyScript, navToggleScript, navButtonsScript, injectScripts } from './inject.js';
+import { copyScript, navToggleScript, navButtonsScript, darkModeScript, injectScripts } from './inject.js';
 
 const require = createRequire(import.meta.url);
 const { script: singlefileScript } = require('single-file-cli/lib/single-file-bundle.js');
@@ -17,7 +17,7 @@ export async function saveSite(page, url, outputPath, config, { force = false, u
   // Remove notifications banner (e.g. "Event ends in...") before snapshot
   await page.evaluate(() => {
     document.querySelectorAll(
-      '[aria-label="Notifications"], #app-notifications, [data-itemid="EVENT_STATE"]'
+      '[aria-label="Notifications"], #app-notifications, [data-itemid="EVENT_STATE"], [data-testid="preview-component-side-nav-footer"]'
     ).forEach((el) => el.remove());
   });
 
@@ -81,7 +81,7 @@ export async function saveSite(page, url, outputPath, config, { force = false, u
 
   await writeFile(
     outputPath,
-    injectScripts(html, copyScript, navToggleScript, navButtonsScript(orderedFiles, index))
+    injectScripts(html, copyScript, navToggleScript, navButtonsScript(orderedFiles, index), darkModeScript)
   );
   return { skipped: false };
 }
