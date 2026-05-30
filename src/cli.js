@@ -6,6 +6,8 @@ import { ensureSessionDir, sessionPath } from './auth.js';
 import { loadConfig } from './config.js';
 import { discoverPages, buildFilename, newFilenameState } from './nav.js';
 import { savePdf } from './pdf.js';
+import { saveHtml } from './html.js';
+import { saveSite } from './site.js';
 
 program
   .name('wscrape')
@@ -42,10 +44,11 @@ program
 
 program
   .command('run <baseUrl>')
-  .description('Scrape all pages and save as PDFs')
+  .description('Scrape all pages as PDF, HTML, or offline linked site')
   .requiredOption('-o, --output <dir>', 'Output directory')
   .option('-c, --config <file>', 'Custom config JSON (overrides AWS workshop defaults)')
-  .option('--force', 'Overwrite existing PDFs', false)
+  .option('-f, --format <type>', 'Output format: pdf, html, or site', 'pdf')
+  .option('--force', 'Overwrite existing files', false)
   .option('--dry-run', 'List pages without downloading', false)
   .action(async (baseUrl, opts) => {
     const { existsSync } = await import('fs');
@@ -54,14 +57,21 @@ program
       process.exit(1);
     }
 
+    if (!['pdf', 'html', 'site'].includes(opts.format)) {
+      console.error(`Invalid format: "${opts.format}". Use pdf, html, or site.`);
+      process.exit(1);
+    }
+
     const config = await loadConfig(opts.config);
     const outputDir = resolve(opts.output);
+    const ext = opts.format === 'pdf' ? 'pdf' : 'html';
+    const save = { pdf: savePdf, html: saveHtml, site: saveSite }[opts.format];
 
     console.log('Loading session...');
 
     const browser = await chromium.launch({ headless: true });
     // Restore full storageState (cookies + localStorage)
-    const context = await browser.newContext({ storageState: sessionPath });
+    const context = await browser.newContext({ storageState: sessionPath, bypassCSP: true });
     const page = await context.newPage();
 
     console.log(`Navigating to ${baseUrl}...`);
@@ -72,7 +82,9 @@ program
     }
 
     const currentUrl = page.url();
-    if (currentUrl.includes('/join') || !currentUrl.includes('workshop')) {
+    const sameHost = new URL(currentUrl).hostname === new URL(baseUrl).hostname;
+    const hitLogin = config.loginIndicator && currentUrl.includes(config.loginIndicator);
+    if (!sameHost || hitLogin) {
       console.error(`Redirected to: ${currentUrl}`);
       console.error('Session expired or invalid. Re-run: wscrape login <url>');
       await browser.close();
@@ -93,12 +105,25 @@ program
     if (opts.dryRun) {
       const state = newFilenameState();
       pages.forEach((p) => {
-        const filename = buildFilename(p, state);
+        const filename = buildFilename(p, state, ext);
         console.log(`  ${filename}`);
         console.log(`    ${p.url}`);
       });
       await browser.close();
       return;
+    }
+
+    // Build url→filename map + ordered file list for --format site
+    // (needed to rewrite nav links and wire next/prev navigation)
+    const urlToFilename = {};
+    const orderedFiles = [];
+    if (opts.format === 'site') {
+      const mapState = newFilenameState();
+      pages.forEach((p) => {
+        const fn = buildFilename(p, mapState, 'html');
+        urlToFilename[p.url] = fn;
+        orderedFiles.push(fn);
+      });
     }
 
     const failed = [];
@@ -108,13 +133,13 @@ program
 
     for (let i = 0; i < pages.length; i++) {
       const pageInfo = pages[i];
-      const filename = buildFilename(pageInfo, state);
+      const filename = buildFilename(pageInfo, state, ext);
       const outputPath = join(outputDir, filename);
 
       process.stdout.write(`[${i + 1}/${pages.length}] ${filename} ... `);
 
       try {
-        const result = await savePdf(page, pageInfo.url, outputPath, config, { force: opts.force });
+        const result = await save(page, pageInfo.url, outputPath, config, { force: opts.force, urlToFilename, orderedFiles, index: i });
         if (result.skipped) {
           console.log('skipped');
           skipped++;

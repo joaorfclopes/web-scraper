@@ -1,4 +1,5 @@
 {
+  "loginIndicator": "/join",
   "nav": {
     "containerSelector": "nav[class*='awsui_navigation']",
     "itemSelector": "a[href]",
@@ -16,7 +17,10 @@
     "[class*='AppTopNavigation']",
     "[class*='Footer-module']",
     "[class*='awsui_tools']",
-    "[class*='awsui_drawer']"
+    "[class*='awsui_drawer']",
+    "[class*='awsui_flashbar']",
+    "[class*='awsui_flash']",
+    "[class*='awsui_notifications']"
   ],
   "widenSelectors": [
     "[class*='awsui_content-wrapper']",

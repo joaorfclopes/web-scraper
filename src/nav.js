@@ -4,11 +4,17 @@
  * Only links whose pathname starts with basePath are kept.
  */
 export async function discoverPages(page, baseUrl, config) {
-  // Strip to the deepest path segment named "workshop" so any page URL works as entry point.
-  // e.g. /event/dashboard/en-US/workshop/introduction → /event/dashboard/en-US/workshop
-  const rawPath = new URL(baseUrl).pathname.replace(/\/$/, '');
-  const workshopIdx = rawPath.lastIndexOf('/workshop');
-  const basePath = workshopIdx !== -1 ? rawPath.slice(0, workshopIdx + '/workshop'.length) : rawPath;
+  let basePath;
+  if (config.basePath) {
+    basePath = config.basePath.replace(/\/$/, '');
+  } else {
+    const rawPath = new URL(baseUrl).pathname.replace(/\/$/, '');
+    const idx = rawPath.lastIndexOf('/workshop');
+    basePath =
+      idx !== -1
+        ? rawPath.slice(0, idx + '/workshop'.length)
+        : rawPath.slice(0, rawPath.lastIndexOf('/'));
+  }
 
   const pages = await page.evaluate(
     ({ containerSelector, itemSelector, groupSelector, groupTitleSelector, basePath }) => {
@@ -91,7 +97,7 @@ export async function discoverPages(page, baseUrl, config) {
  *   03.01 Getting Started - Environment Setup.pdf
  *   03.02 Getting Started - TaskFlow Setup.pdf
  */
-export function buildFilename(pageInfo, state) {
+export function buildFilename(pageInfo, state, ext = 'pdf') {
   const sanitize = (s) =>
     s.replace(/[/\\?%*:|"<>]/g, '-').replace(/\s+/g, ' ').trim().slice(0, 80);
 
@@ -104,12 +110,12 @@ export function buildFilename(pageInfo, state) {
       state.childIndex = 0;
     }
     state.childIndex += 1;
-    return `${pad(state.parentIndex)}.${pad(state.childIndex)} ${sanitize(pageInfo.groupTitle)} - ${sanitize(pageInfo.title)}.pdf`;
+    return `${pad(state.parentIndex)}.${pad(state.childIndex)} ${sanitize(pageInfo.groupTitle)} - ${sanitize(pageInfo.title)}.${ext}`;
   } else {
     state.currentGroup = null;
     state.parentIndex += 1;
     state.childIndex = 0;
-    return `${pad(state.parentIndex)} ${sanitize(pageInfo.title)}.pdf`;
+    return `${pad(state.parentIndex)} ${sanitize(pageInfo.title)}.${ext}`;
   }
 }
 
