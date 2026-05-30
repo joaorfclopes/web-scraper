@@ -11,7 +11,7 @@ import { saveSite } from './site.js';
 
 program
   .name('wscrape')
-  .description('Download workshop/docs pages as PDFs')
+  .description('Download documentation/workshop pages as PDFs or HTML')
   .version('1.0.0');
 
 // ── login ──────────────────────────────────────────────────────────────────
@@ -66,6 +66,15 @@ program
     const outputDir = resolve(opts.output);
     const ext = opts.format === 'pdf' ? 'pdf' : 'html';
     const save = { pdf: savePdf, html: saveHtml, site: saveSite }[opts.format];
+
+    if (opts.force && existsSync(outputDir)) {
+      const { readdirSync, unlinkSync } = await import('fs');
+      const files = readdirSync(outputDir);
+      if (files.length) {
+        console.log(`Clearing ${files.length} existing file(s) from ${outputDir}...`);
+        for (const f of files) unlinkSync(join(outputDir, f));
+      }
+    }
 
     console.log('Loading session...');
 
@@ -138,8 +147,11 @@ program
 
       process.stdout.write(`[${i + 1}/${pages.length}] ${filename} ... `);
 
+      // Create a fresh page per capture for site format to avoid SingleFile state pollution
+      const capturePage = opts.format === 'site' ? await context.newPage() : page;
+
       try {
-        const result = await save(page, pageInfo.url, outputPath, config, { force: opts.force, urlToFilename, orderedFiles, index: i });
+        const result = await save(capturePage, pageInfo.url, outputPath, config, { force: opts.force, urlToFilename, orderedFiles, index: i });
         if (result.skipped) {
           console.log('skipped');
           skipped++;
@@ -150,6 +162,8 @@ program
       } catch (err) {
         console.log(`FAILED: ${err.message}`);
         failed.push({ filename, url: pageInfo.url, error: err.message });
+      } finally {
+        if (opts.format === 'site') await capturePage.close();
       }
     }
 

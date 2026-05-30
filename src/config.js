@@ -4,7 +4,7 @@ import { fileURLToPath } from 'url';
 import { dirname, join, resolve } from 'path';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const defaultConfigPath = join(__dirname, '..', 'configs', 'aws-workshop.json');
+const defaultConfigPath = join(__dirname, '..', 'configs', 'default.json');
 
 export async function loadConfig(configPath) {
   const defaultRaw = await readFile(defaultConfigPath, 'utf-8');
